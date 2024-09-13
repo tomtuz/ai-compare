@@ -1,63 +1,50 @@
-import type { AIModel } from "@/services/APIService";
+import { mean, standardDeviation } from "simple-statistics";
+import type { AIModel, ProcessedModelData, UserModelData } from "@/types";
 
-export interface ProcessedModelData {
-  id: string;
-  name: string;
-  inputCost: number;
-  outputCost: number;
-  maxOutput: number;
-  contextSize: number;
-  efficiencyScore: number;
-  eloScore?: number;
-  source: "openrouter" | "user";
-  isModified: boolean;
-  originalData?: AIModel;
+const formatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 10,
+  maximumFractionDigits: 10,
+});
+
+export function processAllModelData(models: AIModel[]): ProcessedModelData[] {
+  const processedModels = models.map((model) => processModelData(model));
+  return normalizeEfficiencyScores(processedModels);
 }
 
-export interface UserModelData {
-  id: string;
-  [key: string]: any;
-}
-
-/**
- * Processes raw AI model data into a standardized format
- * @param {AIModel} model - The raw AI model data
- * @returns {ProcessedModelData} The processed model data
- */
 export function processModelData(model: AIModel): ProcessedModelData {
-  const inputCost = Number.parseFloat(model.pricing?.prompt ?? "0") || 0;
-  const outputCost = Number.parseFloat(model.pricing?.completion ?? "0") || 0;
-  const maxOutput = model.top_provider?.max_completion_tokens ?? 0;
-  const contextSize = model.top_provider?.context_length ?? 0;
+  const { id, name, pricing, top_provider } = model;
+  const inputCost = Number(pricing?.prompt) || 0;
+  const outputCost = Number(pricing?.completion) || 0;
+  const maxOutput = top_provider?.max_completion_tokens || 0;
+  const contextSize = top_provider?.context_length || 0;
 
-  return {
-    id: model.id,
-    name: model.name,
+  const formatCost = (cost: number) =>
+    cost > 0
+      ? Number(formatter.format(cost * 1_000_000).replace(/,/g, ""))
+      : cost;
+
+  const rawEfficiencyScore = calculateRawEfficiencyScore(
     inputCost,
     outputCost,
     maxOutput,
     contextSize,
-    efficiencyScore: calculateEfficiencyScore(
-      inputCost,
-      outputCost,
-      maxOutput,
-      contextSize,
-    ),
-    source: "openrouter",
+  );
+
+  return {
+    id,
+    name,
+    inputCost: formatCost(inputCost),
+    outputCost: formatCost(outputCost),
+    maxOutput,
+    contextSize,
+    efficiencyScore: rawEfficiencyScore, // Set initial efficiency score
+    source: "openrouter" as const,
     isModified: false,
     originalData: model,
   };
 }
 
-/**
- * Calculates an efficiency score for an AI model
- * @param {number} inputCost - The input cost
- * @param {number} outputCost - The output cost
- * @param {number} maxOutput - The maximum output tokens
- * @param {number} contextSize - The context size
- * @returns {number} The calculated efficiency score (0-100)
- */
-function calculateEfficiencyScore(
+export function calculateRawEfficiencyScore(
   inputCost: number,
   outputCost: number,
   maxOutput: number,
@@ -67,19 +54,56 @@ function calculateEfficiencyScore(
     return 0;
   }
 
-  // Avoid division by zero
-  const totalCost = inputCost + outputCost || 1;
-  const efficiency = (maxOutput * contextSize) / (totalCost * 1000);
+  const averageCost = (inputCost + outputCost) / 2;
 
-  // Normalize the efficiency score to a 0-100 scale
-  return Math.min(Math.max(efficiency * 10, 0), 100);
+  // Avoid division by zero and log of zero
+  if (averageCost === 0 || maxOutput === 0 || contextSize === 0) {
+    return 0;
+  }
+
+  const capability = Math.log(Math.max(1, maxOutput * contextSize));
+  return capability / (averageCost * 1000000);
 }
 
-/**
- * Calculates the cost per 10 million tokens for an AI model
- * @param {AIModel} model - The AI model to calculate the cost for
- * @returns {number} The cost per 10 million tokens
- */
+export function normalizeEfficiencyScores(
+  models: ProcessedModelData[],
+): ProcessedModelData[] {
+  const rawScores = models.map((model) => model.efficiencyScore);
+
+  const validScores = rawScores.filter(
+    (score) => !Number.isNaN(score) && Number.isFinite(score) && score > 0,
+  );
+
+  if (validScores.length === 0) {
+    return models.map((model) => ({ ...model, efficiencyScore: 0 }));
+  }
+
+  const meanScore = mean(validScores);
+  const stdDev = standardDeviation(validScores);
+
+  return models.map((model) => {
+    if (
+      Number.isNaN(model.efficiencyScore) ||
+      !Number.isFinite(model.efficiencyScore) ||
+      model.efficiencyScore <= 0
+    ) {
+      return { ...model, efficiencyScore: 0 };
+    }
+
+    const zScore = (model.efficiencyScore - meanScore) / (stdDev || 1); // Avoid division by zero
+    const normalizedScore = Math.min(
+      Math.max(((zScore + 3) / 6) * 100, 0),
+      100,
+    );
+
+    return {
+      ...model,
+      efficiencyScore: Number(normalizedScore.toFixed(2)),
+    };
+  });
+}
+
+// Calculates the cost per 10 million tokens for an AI model
 export function calculateCostPer10MTokens(model: AIModel): number {
   const inputCost = Number.parseFloat(model.pricing?.prompt ?? "0") || 0;
   const outputCost = Number.parseFloat(model.pricing?.completion ?? "0") || 0;
@@ -88,18 +112,11 @@ export function calculateCostPer10MTokens(model: AIModel): number {
     return 0;
   }
 
-  // Assuming an equal split between input and output tokens
   const averageCost = (inputCost + outputCost) / 2;
-
-  return averageCost * 10000000; // Cost per 10 million tokens
+  return averageCost * 10000000;
 }
 
-/**
- * Merges OpenRouter data with user data
- * @param {ProcessedModelData[]} openRouterData - The processed OpenRouter data
- * @param {UserModelData[]} userData - The user-modified data
- * @returns {ProcessedModelData[]} The merged data
- */
+// Merges OpenRouter data with user data
 export function mergeDataSources(
   openRouterData: ProcessedModelData[],
   userData: UserModelData[],
@@ -117,7 +134,6 @@ export function mergeDataSources(
     return model;
   });
 
-  // Add any user-created models
   const userCreatedModels = userData
     .filter((um) => !openRouterData.some((orm) => orm.id === um.id))
     .map((um) => ({
@@ -153,19 +169,13 @@ export function mergeDataSources(
   return [...mergedData, ...userCreatedModels];
 }
 
-/**
- * Sorts an array of ProcessedModelData based on a specified key
- * @param {ProcessedModelData[]} models - The array of models to sort
- * @param {keyof ProcessedModelData} sortBy - The key to sort by
- * @param {boolean} ascending - Whether to sort in ascending order
- * @returns {ProcessedModelData[]} The sorted array of models
- */
+// Sorts an array of ProcessedModelData based on a specified key
 export function sortModels(
   models: ProcessedModelData[],
   sortBy: keyof ProcessedModelData,
   ascending: boolean,
 ): ProcessedModelData[] {
-  return [...models].sort((a, b) => {
+  const results = [...models].sort((a, b) => {
     const aValue = a[sortBy];
     const bValue = b[sortBy];
     if (aValue != null && bValue != null) {
@@ -174,21 +184,20 @@ export function sortModels(
     }
     return 0;
   });
+
+  console.log("sortedModels: ", results);
+  return results;
 }
 
-/**
- * Filters an array of ProcessedModelData based on specified filters
- * @param {ProcessedModelData[]} models - The array of models to filter
- * @param {Partial<ProcessedModelData>} filters - The filters to apply
- * @returns {ProcessedModelData[]} The filtered array of models
- */
+// Filters an array of ProcessedModelData based on specified filters
 export function filterModels(
   models: ProcessedModelData[],
   filters: Partial<ProcessedModelData>,
 ): ProcessedModelData[] {
-  return models.filter((model) => {
+  const results = models.filter((model) => {
     for (const [key, value] of Object.entries(filters)) {
       if (value === undefined) continue;
+
       const modelValue = model[key as keyof ProcessedModelData];
       if (typeof value === "string" && typeof modelValue === "string") {
         if (!modelValue.toLowerCase().includes(value.toLowerCase())) {
@@ -200,4 +209,7 @@ export function filterModels(
     }
     return true;
   });
+
+  console.log("filterModels ", results);
+  return results;
 }

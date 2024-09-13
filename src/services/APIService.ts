@@ -1,40 +1,16 @@
 import axios from "axios";
 import { useQuery, QueryClient } from "react-query";
 import {
-  ProcessedModelData,
-  UserModelData,
   processModelData,
   mergeDataSources,
+  normalizeEfficiencyScores,
 } from "@/utils/dataProcessing";
-
-export interface AIModel {
-  id: string;
-  name: string;
-  created: number;
-  description: string;
-  context_length: number;
-  architecture: {
-    modality: string;
-    tokenizer: string;
-    instruct_type: unknown;
-  };
-  pricing: {
-    prompt: string;
-    completion: string;
-    image: string;
-    request: string;
-  };
-  top_provider: {
-    context_length: number;
-    max_completion_tokens: number;
-    is_moderated: boolean;
-  };
-  per_request_limits: unknown;
-}
-
-interface APIResponse {
-  data: AIModel[];
-}
+import type {
+  AIModel,
+  APIResponse,
+  ProcessedModelData,
+  UserModelData,
+} from "@/types";
 
 const API_URL = "https://openrouter.ai/api/v1/models";
 const LOCAL_STORAGE_KEY = "aiModelsData";
@@ -48,6 +24,7 @@ export class APIService {
     this.queryClient = queryClient;
   }
 
+  // Singleton instance getter
   public static getInstance(queryClient: QueryClient): APIService {
     if (!APIService.instance) {
       APIService.instance = new APIService(queryClient);
@@ -55,6 +32,7 @@ export class APIService {
     return APIService.instance;
   }
 
+  // Fetch models from API or local storage
   private async fetchModels(): Promise<ProcessedModelData[]> {
     try {
       const cachedData = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -64,7 +42,9 @@ export class APIService {
         processedData = JSON.parse(cachedData) as ProcessedModelData[];
       } else {
         const response = await axios.get<APIResponse>(API_URL);
-        processedData = response.data.data.map(processModelData);
+        const modelData: AIModel[] = response.data.data;
+        processedData = modelData.map(processModelData);
+        processedData = normalizeEfficiencyScores(processedData);
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(processedData));
       }
 
@@ -75,6 +55,7 @@ export class APIService {
     }
   }
 
+  // Merge API data with user data
   private mergeWithUserData(
     openRouterData: ProcessedModelData[],
   ): ProcessedModelData[] {
@@ -82,32 +63,37 @@ export class APIService {
     return mergeDataSources(openRouterData, userData);
   }
 
+  // React Query hook for fetching models
   public useModels() {
     return useQuery<ProcessedModelData[], Error>(
       "aiModels",
       () => this.fetchModels(),
       {
-        staleTime: 5 * 60 * 1000, // 5 minutes
-        cacheTime: 60 * 60 * 1000, // 1 hour
+        staleTime: 5 * 60 * 1000,
+        cacheTime: 60 * 60 * 1000,
       },
     );
   }
 
+  // Refresh models by clearing cache and refetching
   public async refreshModels() {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
     await this.queryClient.invalidateQueries("aiModels");
   }
 
+  // Get user data from local storage
   public getUserData(): UserModelData[] {
     const userData = localStorage.getItem(USER_DATA_KEY);
     return userData ? JSON.parse(userData) : [];
   }
 
+  // Save user data to local storage
   public saveUserData(data: UserModelData[]) {
     localStorage.setItem(USER_DATA_KEY, JSON.stringify(data));
     this.queryClient.invalidateQueries("aiModels");
   }
 
+  // Update a single user model
   public updateUserModel(model: UserModelData) {
     const userData = this.getUserData();
     const index = userData.findIndex((m) => m.id === model.id);
@@ -119,6 +105,7 @@ export class APIService {
     this.saveUserData(userData);
   }
 
+  // Delete a user model
   public deleteUserModel(id: string) {
     const userData = this.getUserData();
     const updatedUserData = userData.filter((m) => m.id !== id);
@@ -126,6 +113,7 @@ export class APIService {
   }
 }
 
+// Exported hooks for use in components
 export const useModels = (queryClient: QueryClient) =>
   APIService.getInstance(queryClient).useModels();
 export const useRefreshModels = (queryClient: QueryClient) => () =>
