@@ -45,3 +45,14 @@ export interface UserModelData {
   id: string;
   [key: string]: any;
 }
+
+export interface ChartData {
+  name: string;
+  cost: number;
+  efficiency: number;
+  isFavorite: boolean;
+  isModified: boolean;
+  inputCost: number;
+  outputCost: number;
+  source: string;
+}

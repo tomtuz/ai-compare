@@ -11,8 +11,9 @@ import {
   Line,
   ComposedChart,
 } from "recharts";
-import type { ProcessedModelData } from "@/types";
 import { useModelListLogic } from "@/hooks/useModelListLogic";
+import { calculateLinearRegression } from "@/utils/plotFunctions";
+import type { ChartData, ProcessedModelData } from "@/types";
 
 interface ScatterPlotProps {
   modelListLogic: ReturnType<typeof useModelListLogic>;
@@ -23,44 +24,42 @@ const formatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
-function calculateLinearRegression(data: { x: number; y: number }[]): {
-  slope: number;
-  intercept: number;
-} {
-  const n = data.length;
-  let sumX = 0;
-  let sumY = 0;
-  let sumXY = 0;
-  let sumXX = 0;
-
-  for (const point of data) {
-    sumX += point.x;
-    sumY += point.y;
-    sumXY += point.x * point.y;
-    sumXX += point.x * point.x;
-  }
-
-  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-  const intercept = (sumY - slope * sumX) / n;
-
-  return { slope, intercept };
-}
-
 export function ScatterPlot({ modelListLogic }: ScatterPlotProps) {
   const { allProcessedData, favorites } = modelListLogic;
 
+  const chartDataList: ChartData[] = [];
+  // step 1. calculate efficiency scores
   const chartData = useMemo(() => {
-    return allProcessedData.map((model) => ({
-      name: model.name,
-      cost: calculateCost(model),
-      efficiency: model.efficiencyScore ?? 0,
-      isFavorite: favorites.includes(model.id),
-      isModified: model.isModified,
-      source: model.source,
-    }));
+    for (const model of allProcessedData) {
+      if (
+        model.efficiencyScore <= 0 ||
+        model.inputCost <= 0 ||
+        model.outputCost <= 0
+      ) {
+        continue;
+      }
+
+      if (!model.name) {
+        console.log("model data invalid: ", model);
+      }
+
+      chartDataList.push({
+        name: model.name,
+        cost: calculateCost(model),
+        efficiency: model.efficiencyScore ?? 0,
+        isFavorite: favorites.includes(model.id),
+        isModified: model.isModified,
+        inputCost: model.inputCost,
+        outputCost: model.outputCost,
+        source: model.source,
+      });
+    }
+    console.log("chartDataList: ", chartDataList);
+    return chartDataList;
   }, [allProcessedData, favorites]);
 
   function calculateCost(model: ProcessedModelData): number {
+    // input vs. output ratio of ~ 22:1
     const inputTokenM = 11102525 / 1_000_000;
     const outputTokenM = 502975 / 1_000_000;
     const cost =
@@ -81,7 +80,7 @@ export function ScatterPlot({ modelListLogic }: ScatterPlotProps) {
   }, [chartData]);
 
   return (
-    <div className="h-[600px] rounded-lg bg-white p-4 shadow-lg">
+    <div className="h-[65vh] w-[80vw] rounded-lg bg-white p-4 shadow-lg">
       <h2 className="mb-4 text-center text-xl font-bold text-gray-800">
         Cost vs Efficiency
       </h2>
@@ -91,14 +90,18 @@ export function ScatterPlot({ modelListLogic }: ScatterPlotProps) {
       >
         <ComposedChart
           data={chartData}
-          margin={{ top: 20, right: 30, left: 40, bottom: 5 }}
+          margin={{ top: 20, right: 20, left: 20, bottom: 30 }}
         >
           <XAxis
             type="number"
             dataKey="cost"
             name="Cost"
             unit="$"
-            label={{ value: "Cost ($)", position: "bottom", offset: 0 }}
+            label={{
+              value: "Cost (10M/$)",
+              position: "insideBottomRight",
+              offset: -15,
+            }}
             tick={{ fill: "#4B5563" }}
           />
           <YAxis
@@ -117,6 +120,7 @@ export function ScatterPlot({ modelListLogic }: ScatterPlotProps) {
             strokeDasharray="3 3"
             stroke="#E5E7EB"
           />
+
           <Tooltip
             cursor={{ strokeDasharray: "3 3" }}
             contentStyle={{
@@ -127,12 +131,14 @@ export function ScatterPlot({ modelListLogic }: ScatterPlotProps) {
                 "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
             }}
             content={({ active, payload }) => {
-              if (active && payload && payload.length) {
+              if (active && payload?.length) {
                 const data = payload[0].payload;
                 return (
                   <div className="p-2">
                     <p className="font-bold text-gray-800">{data.name}</p>
                     <p className="text-gray-600">Cost: ${data.cost}</p>
+                    <p className="text-gray-600">Input: ${data.inputCost}</p>
+                    <p className="text-gray-600">Output: ${data.outputCost}</p>
                     <p className="text-gray-600">
                       Efficiency Score: {data.efficiency.toFixed(2)}
                     </p>
