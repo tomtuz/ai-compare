@@ -1,4 +1,4 @@
-export const formatters = {
+const formatters = {
   currency: (value: number | null | undefined) =>
     value != null ? `$${value.toFixed(2)}` : "N/A",
   number: (value: number | null | undefined) =>
@@ -15,7 +15,7 @@ type ColumnTypes = {
   responsiveClasses?: string;
 };
 
-export const columns: ColumnTypes[] = [
+const columns: ColumnTypes[] = [
   { key: "name", label: "Name", responsiveClasses: "" },
   {
     key: "inputCost",
@@ -48,3 +48,5 @@ export const columns: ColumnTypes[] = [
     responsiveClasses: "",
   },
 ];
+
+export { formatters, columns };

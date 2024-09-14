@@ -11,12 +11,12 @@ import {
   Line,
   ComposedChart,
 } from "recharts";
-import { useModelListLogic } from "@/hooks/useModelListLogic";
-import { calculateLinearRegression } from "@/utils/plotFunctions";
+import { useModelList } from "@table/hooks";
+import { calculateLinearRegression } from "@plot/utils/plotFunctions";
 import type { ChartData, ProcessedModelData } from "@/types";
 
 interface ScatterPlotProps {
-  modelListLogic: ReturnType<typeof useModelListLogic>;
+  modelListLogic: ReturnType<typeof useModelList>;
 }
 
 const formatter = new Intl.NumberFormat("en-US", {

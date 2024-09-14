@@ -1,21 +1,9 @@
-import { ProcessedModelData } from "@/types";
-
-// Define interfaces for configuration objects
-export interface SortConfig {
-  key: keyof ProcessedModelData;
-  direction: "asc" | "desc";
-}
-
-export interface FilterConfig {
-  searchTerm: string;
-  showOnlyFavorites: boolean;
-  favorites: string[];
-}
-
-export interface PaginationConfig {
-  currentPage: number;
-  rowsPerPage: number;
-}
+import {
+  FilterConfig,
+  PaginationConfig,
+  ProcessedModelData,
+  SortConfig,
+} from "@/types";
 
 // Sort data based on the provided sort configuration
 export function sortData(

@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useQuery, QueryClient } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import {
   processModelData,
   mergeDataSources,
@@ -12,30 +12,26 @@ import type {
   UserModelData,
 } from "@/types";
 
+import { useAppContext } from "@/context/AppContext";
+
 const API_URL = "https://openrouter.ai/api/v1/models";
-const LOCAL_STORAGE_KEY = "aiModelsData";
-const USER_DATA_KEY = "userModelData";
 
-export class APIService {
-  private static instance: APIService;
-  private queryClient: QueryClient;
+// API fetched (external) and User added (local) data
+const EXTERNAL_MODELS_KEY = "ai_cmp_ExternalModelData"; // avoid changing this data
+const LOCAL_MODELS_KEY = "ai_cmp_ExternalModelData";
+// const FAVORITE_MODELS_KEY = "ai_cmp_FavoriteModels";
 
-  private constructor(queryClient: QueryClient) {
-    this.queryClient = queryClient;
-  }
+// App meta information, i.e. api call count
+// const APP_META_KEY = "ai_cmp_MetaInfo";
 
-  // Singleton instance getter
-  public static getInstance(queryClient: QueryClient): APIService {
-    if (!APIService.instance) {
-      APIService.instance = new APIService(queryClient);
-    }
-    return APIService.instance;
-  }
+export function useAPIService() {
+  const queryClient = useQueryClient();
+  const { incrementApiCallCount } = useAppContext();
 
   // Fetch models from API or local storage
-  private async fetchModels(): Promise<ProcessedModelData[]> {
+  const fetchModels = async (): Promise<ProcessedModelData[]> => {
     try {
-      const cachedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const cachedData = localStorage.getItem(EXTERNAL_MODELS_KEY);
       let processedData: ProcessedModelData[] = [];
 
       if (cachedData) {
@@ -45,81 +41,84 @@ export class APIService {
         const modelData: AIModel[] = response.data.data;
         processedData = modelData.map(processModelData);
         processedData = normalizeEfficiencyScores(processedData);
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(processedData));
+
+        if (incrementApiCallCount) {
+          incrementApiCallCount();
+        } else {
+          console.log("API call not updated!");
+        }
+
+        localStorage.setItem(
+          EXTERNAL_MODELS_KEY,
+          JSON.stringify(processedData),
+        );
       }
 
-      return this.mergeWithUserData(processedData);
+      return mergeWithUserData(processedData);
     } catch (error) {
       console.error("Error fetching AI models:", error);
       throw error;
     }
-  }
+  };
 
   // Merge API data with user data
-  private mergeWithUserData(
+  const mergeWithUserData = (
     openRouterData: ProcessedModelData[],
-  ): ProcessedModelData[] {
-    const userData = this.getUserData();
+  ): ProcessedModelData[] => {
+    const userData = getUserData();
     return mergeDataSources(openRouterData, userData);
-  }
+  };
 
   // React Query hook for fetching models
-  public useModels() {
-    return useQuery<ProcessedModelData[], Error>(
-      "aiModels",
-      () => this.fetchModels(),
-      {
-        staleTime: 5 * 60 * 1000,
-        cacheTime: 60 * 60 * 1000,
-      },
-    );
-  }
+  const useModels = () => {
+    return useQuery<ProcessedModelData[], Error>("aiModels", fetchModels, {
+      staleTime: 5 * 60 * 1000,
+      cacheTime: 60 * 60 * 1000,
+    });
+  };
 
   // Refresh models by clearing cache and refetching
-  public async refreshModels() {
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
-    await this.queryClient.invalidateQueries("aiModels");
-  }
+  const refreshModels = async () => {
+    localStorage.removeItem(EXTERNAL_MODELS_KEY);
+    await queryClient.invalidateQueries("aiModels");
+  };
 
   // Get user data from local storage
-  public getUserData(): UserModelData[] {
-    const userData = localStorage.getItem(USER_DATA_KEY);
+  const getUserData = (): UserModelData[] => {
+    const userData = localStorage.getItem(LOCAL_MODELS_KEY);
     return userData ? JSON.parse(userData) : [];
-  }
+  };
 
   // Save user data to local storage
-  public saveUserData(data: UserModelData[]) {
-    localStorage.setItem(USER_DATA_KEY, JSON.stringify(data));
-    this.queryClient.invalidateQueries("aiModels");
-  }
+  const saveUserData = (data: UserModelData[]) => {
+    localStorage.setItem(LOCAL_MODELS_KEY, JSON.stringify(data));
+    queryClient.invalidateQueries("aiModels");
+  };
 
   // Update a single user model
-  public updateUserModel(model: UserModelData) {
-    const userData = this.getUserData();
+  const updateUserModel = (model: UserModelData) => {
+    const userData = getUserData();
     const index = userData.findIndex((m) => m.id === model.id);
     if (index !== -1) {
       userData[index] = { ...userData[index], ...model };
     } else {
       userData.push(model);
     }
-    this.saveUserData(userData);
-  }
+    saveUserData(userData);
+  };
 
   // Delete a user model
-  public deleteUserModel(id: string) {
-    const userData = this.getUserData();
+  const deleteUserModel = (id: string) => {
+    const userData = getUserData();
     const updatedUserData = userData.filter((m) => m.id !== id);
-    this.saveUserData(updatedUserData);
-  }
-}
+    saveUserData(updatedUserData);
+  };
 
-// Exported hooks for use in components
-export const useModels = (queryClient: QueryClient) =>
-  APIService.getInstance(queryClient).useModels();
-export const useRefreshModels = (queryClient: QueryClient) => () =>
-  APIService.getInstance(queryClient).refreshModels();
-export const useUpdateUserModel =
-  (queryClient: QueryClient) => (model: UserModelData) =>
-    APIService.getInstance(queryClient).updateUserModel(model);
-export const useDeleteUserModel = (queryClient: QueryClient) => (id: string) =>
-  APIService.getInstance(queryClient).deleteUserModel(id);
+  return {
+    useModels,
+    refreshModels,
+    getUserData,
+    updateUserModel,
+    deleteUserModel,
+  };
+}

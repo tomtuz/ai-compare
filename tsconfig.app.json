@@ -21,7 +21,11 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"],
+      "@table": ["./src/features/Table"],
+      "@table/*": ["./src/features/Table/*"],
+      "@plot": ["./src/features/Plot"],
+      "@plot/*": ["./src/features/Plot/*"]
     }
   },
   "include": ["src"]

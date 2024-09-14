@@ -7,6 +7,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@table": fileURLToPath(new URL("./src/features/Table", import.meta.url)),
+      "@plot": fileURLToPath(new URL("./src/features/Plot", import.meta.url)),
     },
   },
 });

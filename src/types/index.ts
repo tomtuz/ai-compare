@@ -1,3 +1,4 @@
+// global type
 export interface AIModel {
   id: string;
   name: string;
@@ -23,10 +24,17 @@ export interface AIModel {
   per_request_limits: null | any;
 }
 
+// API Service related
 export interface APIResponse {
   data: AIModel[];
 }
 
+// Application Data related
+export interface AppMetaInfo {
+  apiCallCount: number;
+}
+
+// Table related
 export interface ProcessedModelData {
   id: string;
   name: string;
@@ -55,4 +63,21 @@ export interface ChartData {
   inputCost: number;
   outputCost: number;
   source: string;
+}
+
+// Define interfaces for configuration objects
+export interface SortConfig {
+  key: keyof ProcessedModelData;
+  direction: "asc" | "desc";
+}
+
+export interface FilterConfig {
+  searchTerm: string;
+  showOnlyFavorites: boolean;
+  favorites: string[];
+}
+
+export interface PaginationConfig {
+  currentPage: number;
+  rowsPerPage: number;
 }

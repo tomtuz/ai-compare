@@ -2,7 +2,7 @@ import { TableHeader } from "./TableHeader";
 import { TableBody } from "./TableBody";
 import { TablePagination } from "./TablePagination";
 import { TableFilters } from "./TableFilters";
-import { useModelListLogic } from "@/hooks/useModelListLogic";
+import { useModelListLogic } from "@table/hooks";
 
 interface TableProps {
   modelListLogic: ReturnType<typeof useModelListLogic>;

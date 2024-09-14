@@ -1,5 +1,5 @@
-import { ProcessedModelData } from "@/types";
-import { columns } from "@/constants/tableConstants";
+import { columns } from "@table/constants";
+import type { ProcessedModelData } from "@table/types";
 
 interface TableHeaderProps {
   onSort: (key: keyof ProcessedModelData) => void;

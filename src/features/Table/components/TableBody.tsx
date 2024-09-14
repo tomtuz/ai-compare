@@ -1,6 +1,6 @@
-import { ProcessedModelData } from "@/types";
+import { ProcessedModelData } from "@table";
+import { formatters } from "@table";
 import { TableRow } from "./TableRow";
-import { formatters } from "@/constants/tableConstants";
 
 interface TableBodyProps {
   filteredData: ProcessedModelData[];

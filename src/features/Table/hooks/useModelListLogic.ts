@@ -1,20 +1,28 @@
+// native
 import { useState, useEffect, useCallback } from "react";
-import { ProcessedModelData } from "@/types";
-import { useUpdateUserModel, useDeleteUserModel } from "@/services/APIService";
-import { QueryClient } from "react-query";
-import { formatters } from "@/constants/tableConstants";
-import {
+
+// constants
+import { formatters } from "@table/constants";
+
+// services
+import { useAPIService } from "@/services/APIService";
+
+// utils
+import { processData } from "@/utils/dataManagement";
+
+// types
+import type {
+  ProcessedModelData,
   SortConfig,
   FilterConfig,
   PaginationConfig,
-  processData,
-} from "@/utils/dataManagement";
+} from "@/types";
 
-export const useModelListLogic = (
-  data: ProcessedModelData[],
-  queryClient: QueryClient,
-) => {
-  // State declarations
+export const useModelListLogic = (data: ProcessedModelData[]) => {
+  // API Service
+  const { updateUserModel, deleteUserModel } = useAPIService();
+
+  // Table State declarations
   const [favorites, setFavorites] = useState<string[]>([]);
   const [editingCell, setEditingCell] = useState<{
     id: string;
@@ -29,10 +37,6 @@ export const useModelListLogic = (
   });
   const [editValue, setEditValue] = useState<string>("");
   const [deletedRows, setDeletedRows] = useState<ProcessedModelData[]>([]);
-
-  // API hooks
-  const updateUserModel = useUpdateUserModel(queryClient);
-  const deleteUserModel = useDeleteUserModel(queryClient);
 
   // Filter configuration
   const filterConfig: FilterConfig = {

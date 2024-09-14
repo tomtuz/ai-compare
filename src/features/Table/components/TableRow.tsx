@@ -1,5 +1,5 @@
 import { ProcessedModelData } from "@/types";
-import { columns, formatters } from "@/constants/tableConstants";
+import { columns, formatters } from "@table/constants";
 import { TableCell } from "./TableCell";
 
 interface TableRowProps {

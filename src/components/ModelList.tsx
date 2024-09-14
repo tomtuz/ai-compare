@@ -1,19 +1,16 @@
-import { useModels, useRefreshModels } from "@/services/APIService";
-import { useQueryClient } from "react-query";
-import { Table } from "./Table/Table";
-import { useModelListLogic } from "@/hooks/useModelListLogic";
+import { Table } from "@table";
+import { useModelList } from "@table";
 import { useState } from "react";
-import { ScatterPlot } from "./ScatterPlot";
+import { ScatterPlot } from "../features/Plot/components/ScatterPlot";
+import { useAPIService } from "@/services/APIService";
 
 export function ModelList() {
-  const queryClient = useQueryClient();
-
   // Fetch models using the APIService hook
-  const { data: models, isLoading, error } = useModels(queryClient);
-  const refreshModels = useRefreshModels(queryClient);
+  const { useModels, refreshModels } = useAPIService();
+  const { data: models, isLoading, error } = useModels();
 
   // Use the model list logic hook
-  const modelListLogic = useModelListLogic(models || [], queryClient);
+  const modelListLogic = useModelList(models || []);
 
   // State for showing/hiding the graph
   const [showGraph, setShowGraph] = useState(false);
