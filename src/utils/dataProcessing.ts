@@ -2,8 +2,8 @@ import { mean, standardDeviation } from "simple-statistics";
 import type { AIModel, ProcessedModelData, UserModelData } from "@/types";
 
 const formatter = new Intl.NumberFormat("en-US", {
-  minimumFractionDigits: 10,
-  maximumFractionDigits: 10,
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });
 
 export function processAllModelData(models: AIModel[]): ProcessedModelData[] {
